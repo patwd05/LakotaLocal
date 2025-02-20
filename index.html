@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>School Map</title>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+
+  <style>
+    body, html { margin: 0; padding: 0; height: 100%; width: 100%; position: right; }
+    
+    /* Map container */
+    #map {
+  width: 75%;
+  height: 100vh;
+  position: fixed;
+  right: -15px;  /* Shift map 20px to the right */
+  Bottom: -20px;
+  top: 0;
+}
+
+/* Logo should be fixed at the bottom */
+#control-panel-logo {
+    position: fixed;
+    top: 15px;
+    right: 0%;
+    padding-bottom: 15px;
+    transform: translateX(-50%);
+    max-width: 10%; /* Reduce logo size */
+    height: auto;
+    display: block;
+}
+/* Make the left panel take full height */
+/* Left panel container */
+#controls-container {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    position: absolute;
+    width: 30%;
+    height: 100vh;
+    background: rgb(255, 255, 255);
+    padding: 10px;
+    border: 1px solid #ccc;
+    font-family: sans-serif;
+    font-size: 12px;
+    z-index: 2;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+    left: 0;
+    bottom: 0;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+/* Student Info Panel - Takes remaining space after other elements */
+/* Student Info Panel - Responsive Height */
+#student-info-panel {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    max-height: calc(100vh - 350px);
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    margin-top: 10px;
+    border: none;
+}
+
+/* Remove extra space above chart titles */
+#populationchart-container h4,
+#polarchart-container h4 {
+    margin-top: 0;  /* Remove space above the title */
+    padding-top: 0;
+    font-size: 16px;
+    font-weight: bold;
+    text-align: center;
+}
+
+/* Chart Containers - Responsive and Maintain Aspect Ratio */
+#populationchart-container,
+#polarchart-container {
+    width: 90%;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* Center contents vertically */
+    align-items: center;     /* Center contents horizontally */
+    overflow: hidden;
+    margin: 0 auto;          /* Center the entire container */
+    padding: 10px 0;
+    aspect-ratio: auto;      /* Allow flexible aspect ratio */
+    max-height: 450px;       /* Prevent overflow on smaller screens */
+    min-height: 300px;
+    position: relative;
+    box-sizing: border-box;
+    text-align: center;      /* Ensure text alignment within */
+    border:none;
+}
+
+/* Chart Titles - Centered with Correct Spacing */
+#populationchart-container h4,
+#polarchart-container h4 {
+    margin: 0 auto;          /* Center title horizontally */
+    padding: 8px 0 4px 0;    /* Reduce space above and below */
+    font-size: 16px;
+    font-weight: bold;
+    text-align: center;
+    line-height: 1.2;
+    width: 100%;
+    box-sizing: border-box;
+    display: block;
+}
+
+/* Canvas - Centered with No Stretching */
+canvas {
+    display: block;
+    margin: 0 auto;           /* Center canvas horizontally */
+    width: 100% !important;
+    height: auto !important;  /* Maintain aspect ratio */
+    max-width: 100%;
+    max-height: calc(100% - 30px); /* Account for header space */
+    border: none;
+    border-radius: 0;
+    object-fit: contain;      /* Prevent stretching */
+    box-sizing: border-box;
+}
+
+/* Responsive Design for Smaller Screens */
+@media (max-width: 768px) {
+    #populationchart-container,
+    #polarchart-container {
+        width: 100%; /* Full width on smaller screens */
+        max-height: 350px;
+    }
+
+    #populationchart-container h4,
+    #polarchart-container h4 {
+        font-size: 14px;
+    }
+}
+
+/* Chart Toggle Buttons */
+#chart-toggle-buttons {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;  /* Space between buttons */
+    margin-top:5px;
+    text-align: center;
+}
+
+/* Button Styles */
+.styled-button {
+    background-color: #0033A0;  /* Primary Blue */
+    color: white;               /* White text */
+    border: none;
+    border-radius: 8px;         /* Rounded corners */
+    padding: 8px 16px;          /* Padding inside the button */
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    width: 48%;                 /* Equal width for both buttons */
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Subtle shadow */
+}
+
+/* Hover Effect */
+.styled-button:hover {
+    background-color: #0056b3;  /* Darker blue on hover */
+    transform: scale(1.05);     /* Slight zoom effect */
+}
+
+/* Active (Click) Effect */
+.styled-button:active {
+    background-color: #004085;
+    transform: scale(0.95);     /* Slight shrink effect */
+}
+
+/* Selected State (Optional) */
+.styled-button.selected {
+    background-color: #FF530D;  /* Green when active */
+    color: white;
+}
+
+
+    /* Toggle Button */
+    #toggle-button {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 3;
+      background: hsl(196, 100%, 37%);
+      color: white;
+      border: none;
+      padding: 10px;
+      cursor: pointer;
+      font-size: 10px;
+      border-radius: 0;
+      box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+    }
+    /* Isochrone Buttons */
+    .isochrone-button {
+      background:  hsl(196, 100%, 37%)c;
+      border: none;
+      padding: 5px 10px;
+      font-size: 10px;
+      margin-top: 3px;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    
+    .isochrone-button.selected {
+      background: #353435;
+      color: white;
+    }
+/* Lakota Logo in Controls Container */
+#lakota-logo-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    max-width: 80px; /* Small size so it doesn't push text */
+    height: auto;
+    z-index: 10;
+}
+/* Distance Buttons Container */
+#isochrone-buttons-container {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;  /* Space between buttons */
+    margin: 10px 0;
+    text-align: left;
+}
+
+/* Distance Buttons Styling */
+.isochrone-button {
+    background-color: #0033A0;  /* Primary Blue */
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    flex-grow: 1;  /* Equal width for all buttons */
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Subtle shadow */
+}
+
+/* Hover Effect */
+.isochrone-button:hover {
+    background-color: #0056b3;
+    transform: scale(1.05);
+}
+
+/* Active (Click) Effect */
+.isochrone-button:active {
+    background-color: #004085;
+    transform: scale(0.95);
+}
+
+/* Selected State (Active Button) */
+.isochrone-button.selected {
+    background-color: #FF530D;  /* Green for selected */
+    color: white;
+}
+
+  </style>
+</head>
+<body>
+
+  <!-- Map container -->
+  <div id="map"></div>
+
+  <div id="logo-container">
+    <img id="lakota-logo" src="LakotaLogo.png" alt="Lakota Logo">
+    <img id="control-panel-logo" src="logo-Perkins-Eastman.png" alt="Organization Logo">
+</div>
+
+
+  <!-- Controls (Legend + Filters + Basemap + Isochrone Toggle + School Dropdown) -->
+ 
+</div>
+<<div id="controls-container">  
+  <img id="lakota-logo-controls" src="LakotaLogo.png" alt="Lakota Logo">
+  <h2>Lakota Population Explorer Tool</h2>
+
+    <label for="schoolDropdown"><strong>Select a School:</strong></label>
+    <select id="schoolDropdown">
+      <option value="">-- Select a school --</option>
+  </select>
+    
+    <div id="basemapToggle">
+    </div>
+    <p>To analyze population data around locations, you can draw your own boundary or select isochrone to create a distance-based driving radius.</p>
+    
+    <p>To draw your own boundary, select <strong>"Draw Boundary"</strong> below. Click twice on a map location and then create at least 3 points to create a boundary. Double click with the right mouse button to finish!.</p>
+    
+    <p>To create a driving radius, slect <strong>"Isochrone"</strong> from below and select the distance. Double click on the map where you want the center to be</p>
+    
+    <div id="isochroneToggle">
+      <p><strong>Select Analysis Mode</strong></p>
+      <label><input type="radio" name="analysis-mode" value="polygon" checked> Draw Boundary</label>
+      <label><input type="radio" name="analysis-mode" value="isochrone"> Isochrone</label>
+
+      <div id="isochrone-buttons-container" style="display: none;">
+        <button id="isochrone-800" class="isochrone-button">1 Mi</button>
+        <button id="isochrone-1600" class="isochrone-button">2 Mi</button>
+        <button id="isochrone-3200" class="isochrone-button">5 Mi</button>
+      </div>
+      
+      <div id="clear-boundary-container" style="display: none;">
+        <button id="clear-polygon" class="isochrone-button">Clear Boundary</button>
+    </div>
+    </div>
+    <div id="chart-toggle-buttons">
+      <button id="toggle-populationchart" class="styled-button">View Population</button>
+      <button id="toggle-polarchart" class="styled-button">View Population Direction</button>
+  </div>
+  
+   <!-- Add the Student Info Panel inside controls-container -->
+   <div id="student-info-panel">
+    <!-- Bar Chart Container (Initially Visible) -->
+    <div id="populationchart-container">
+        <h4>Population by Race</h4>
+        <canvas id="populationChart"></canvas>
+    </div>
+
+    <!-- Polar Chart Container (Initially Hidden) -->
+    <div id="polarchart-container" style="display:none;">
+        <h4>Population by Direction</h4>
+        <canvas id="polarChart"></canvas>
+    </div>
+</div>
+
+
+   <!-- Add the logo below the pie chart -->
+
+  <script>
+       const toggleButton = document.getElementById('toggle-button');
+    const controlsContainer = document.getElementById('controls-container');
+    const isochroneButtons = document.querySelectorAll('.isochrone-button');
+
+    toggleButton.addEventListener('click', () => {
+      controlsContainer.classList.toggle('hidden');
+      toggleButton.textContent = controlsContainer.classList.contains('hidden') ? '>>' : '<<';
+    });
+    isochroneButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        isochroneButtons.forEach(btn => btn.classList.remove('selected'));
+        button.classList.add('selected');
+      });
+    });
+  </script>
+
+  <script src="script.js"></script>
+</body>
+</html>
+
